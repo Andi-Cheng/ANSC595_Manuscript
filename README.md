@@ -1,1 +1,1 @@
-#This is a practice for ANSC 595
+#This is for ANSC595 project/manuscript
