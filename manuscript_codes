@@ -1,0 +1,189 @@
+
+
+## Demultiplexing sequences
+
+qiime demux summarize \
+  --i-data demux.qza \
+  --o-visualization demux.qzv
+
+# Decide to trim at at position 6 and 250 for both forward and reverse sequences due to lower quality score.
+# I use quality score 37 as my cutoff point because most of my bases are above 37 
+
+
+#Run dada2 to trim at position 6 and 250
+
+qiime dada2 denoise-paired \
+  --i-demultiplexed-seqs demux.qza \
+  --p-trim-left-f 6 \
+  --p-trim-left-r 6 \
+  --p-trunc-len-f 250 \
+  --p-trunc-len-r 250 \
+  --o-table table.qza \
+  --o-representative-sequences rep-seqs.qza \
+  --o-denoising-stats denoising-stats.qza
+  
+  qiime feature-table summarize \
+  --i-table table.qza \
+  --o-visualization table.qzv \
+  --m-sample-metadata-file metadata_v3.txt
+
+qiime feature-table tabulate-seqs \
+  --i-data rep-seqs.qza \
+  --o-visualization rep-seqs.qzv
+
+qiime metadata tabulate \
+  --m-input-file denoising-stats.qza \
+  --o-visualization denoising-stats.qzv
+
+# Generate tree for phylogenetic diversity
+
+qiime phylogeny align-to-tree-mafft-fasttree \
+  --i-sequences rep-seqs.qza \
+  --o-alignment aligned-rep-seqs.qza \
+  --o-masked-alignment masked-aligned-rep-seqs.qza \
+  --o-tree unrooted-tree.qza \
+  --o-rooted-tree rooted-tree.qza
+
+#alpha and beta diversity analysis
+# I choose sampling depth 6364 because I want to include all of my samples
+
+qiime diversity core-metrics-phylogenetic \
+  --i-phylogeny rooted-tree.qza \
+  --i-table table.qza \
+  --p-sampling-depth 6364 \ 
+  --m-metadata-file metadata_v3.txt \
+  --output-dir core-metrics-results
+
+qiime diversity alpha-group-significance \
+  --i-alpha-diversity core-metrics-results/faith_pd_vector.qza \
+  --m-metadata-file metadata_v3.txt\
+  --o-visualization core-metrics-results/faith-pd-group-significance.qzv
+
+qiime diversity alpha-group-significance \
+  --i-alpha-diversity core-metrics-results/evenness_vector.qza \
+  --m-metadata-file metadata_v3.txt \
+  --o-visualization core-metrics-results/evenness-group-significance.qzv
+
+qiime diversity alpha-group-significance \
+  --i-alpha-diversity core-metrics-results/shannon_vector.qza \
+  --m-metadata-file metadata_v3.txt \
+  --o-visualization core-metrics-results/shannon-group-significance.qzv
+
+qiime diversity alpha-group-significance \
+  --i-alpha-diversity core-metrics-results/observed_features_vector.qza \
+  --m-metadata-file metadata_v3.txt  \
+  --o-visualization core-metrics-results/observed_features-group-significance.qzv
+
+qiime diversity alpha-correlation \
+  --i-alpha-diversity core-metrics-results/faith_pd_vector.qza \
+  --m-metadata-file metadata_v3.txt \
+  --p-method spearman \
+  --o-visualization core-metrics-results/faith-significance.qzv
+
+qiime diversity alpha-correlation \
+  --i-alpha-diversity core-metrics-results/evenness_vector.qza \
+  --m-metadata-file metadata_v3.txt  \
+  --p-method spearman \
+  --o-visualization core-metrics-results/evenness-significance.qzv
+
+qiime diversity alpha-correlation \
+  --i-alpha-diversity core-metrics-results/shannon_vector.qza \
+  --m-metadata-file metadata_v3.txt \
+  --p-method spearman \
+  --o-visualization core-metrics-results/shannon-significance.qzv
+
+qiime diversity alpha-correlation \
+  --i-alpha-diversity core-metrics-results/observed_features_vector.qza\
+  --m-metadata-file metadata_v3.txt  \
+  --p-method spearman \
+  --o-visualization core-metrics-results/observed_features-significance.qzv
+
+# beta diversity
+
+qiime diversity beta-group-significance \
+  --i-distance-matrix core-metrics-results/unweighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata_v3.txt \
+  --m-metadata-column COVID_Result \
+  --o-visualization core-metrics-results/unweighted-unifrac-transect-COVIDResult-significance.qzv \
+  --p-pairwise
+
+qiime diversity beta-group-significance \
+  --i-distance-matrix core-metrics-results/weighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata_v3.txt \
+  --m-metadata-column COVID_Result \
+  --o-visualization core-metrics-results/weighted-unifrac-transcet-COVIDResult-significance.qzv \
+  --p-pairwise
+
+
+qiime diversity beta-group-significance \
+  --i-distance-matrix core-metrics-results/unweighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata_v3.txt \
+  --m-metadata-column Disease_Severity \
+  --o-visualization core-metrics-results/unweighted-unifrac-transect-Severity-significance.qzv \
+  --p-pairwise
+
+qiime diversity beta-group-significance \
+  --i-distance-matrix core-metrics-results/weighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata_v3.txt \
+  --m-metadata-column Disease_Severity \
+  --o-visualization core-metrics-results/weighted-unifrac-transcet-Severity-significance.qzv \
+  --p-pairwise
+
+#Taxanomy analysis 
+#get classifier 
+
+wget \
+  -O "gg-13-8-99-515-806-nb-classifier.qza" \
+  "https://data.qiime2.org/2022.2/common/gg-13-8-99-515-806-nb-classifier.qza"
+
+qiime feature-classifier classify-sklearn \
+  --i-classifier gg-13-8-99-515-806-nb-classifier.qza \
+  --i-reads rep-seqs.qza \
+  --o-classification taxonomy.qza
+
+qiime feature-classifier classify-sklearn \
+  --i-classifier gg-13-8-99-515-806-nb-classifier.qza \
+  --i-reads rep-seqs.qza \
+  --o-classification taxonomy.qza
+
+qiime metadata tabulate \
+  --m-input-file taxonomy.qza \
+  --o-visualization taxonomy.qzv
+
+qiime taxa barplot \
+  --i-table table.qza \
+  --i-taxonomy taxonomy.qza \
+  --m-metadata-file metadata_v3.txt \
+  --o-visualization taxa-bar-plots.qzv
+
+qiime feature-table filter-samples \
+  --i-table table.qza \
+  --m-metadata-file metadata_v3.txt  \
+  --p-where "[COVID_Result]='Positive'" \
+  --o-filtered-table COVIDPositive-table.qza
+
+qiime composition add-pseudocount \
+  --i-table COVIDPositive-table.qza \
+  --o-composition-table comp-COVIDPositive-table.qza
+
+qiime composition ancom \
+  --i-table comp-COVIDPositive-table.qza \
+  --m-metadata-file metadata_v3.txt  \
+  --m-metadata-column Disease_Severity \
+  --o-visualization ancom-DiseaseSeverity.qzv
+
+qiime taxa collapse \
+  --i-table COVIDPositive-table.qza \
+  --i-taxonomy taxonomy.qza \
+  --p-level 6 \
+  --o-collapsed-table COVIDPositive-table-l6.qza
+
+qiime composition add-pseudocount \
+  --i-table COVIDPositive-table-l6.qza \
+  --o-composition-table comp-COVIDPositive-table-l6.qza
+
+qiime composition ancom \
+  --i-table comp-COVIDPositive-table-l6.qza \
+  --m-metadata-file metadata_v3.txt \
+  --m-metadata-column Disease_Severity \
+  --o-visualization l6-ancom-DiseaseSeverity.qzv
