@@ -1,1 +1,1 @@
-#This is for ANSC595 project/manuscript
+#This is for ANSC595 final project
