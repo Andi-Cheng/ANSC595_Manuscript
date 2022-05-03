@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpubr)
 library(phyloseq)
 library(zoo)
-library("DESeq2")
+library(DESeq2)
 library(ggplot2)
 
 setwd("C:/Users/andia/Desktop/Purdue/Spring 2022/ANSC 595/R_Directory")
@@ -359,6 +359,11 @@ my_level <- c("Phylum", "Family", "Genus")
 #this is the metadata column that we will use in the taxa barplot
 my_column <- "Disease_Severity"  
 
+# duplicate but different #
+
+# my_column_COVID <- "COVID_Result"
+# my_column_Sex <- "Sex"
+
 abund_filter <- 0.03
 
 #ml ="Genus"
@@ -370,6 +375,24 @@ taxa.summary <- physeq_bar_plot %>%
   psmelt()  %>%                               # Melt to long format
   group_by(get(my_column), get(ml)) %>%
   summarise(Abundance.average=mean(Abundance)) 
+
+# Duplicate but different #
+
+# taxa.summary <- physeq_bar_plot %>%
+#  tax_glom(taxrank = ml, NArm = FALSE) %>%  # agglomerate at `ml` level
+#  transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
+#  psmelt()  %>%                               # Melt to long format
+#  group_by(get(my_column_COVID), get(ml)) %>%
+#  summarise(Abundance.average=mean(Abundance)) 
+
+
+# taxa.summary <- physeq_bar_plot %>%
+#  tax_glom(taxrank = ml, NArm = FALSE) %>%  # agglomerate at `ml` level
+#  transform_sample_counts(function(x) {x/sum(x)} ) %>% # Transform to rel. abundance
+#  psmelt()  %>%                               # Melt to long format
+#  group_by(get(my_column_Sex), get(ml)) %>%
+#  summarise(Abundance.average=mean(Abundance)) 
+
 
 taxa.summary <- as.data.frame(taxa.summary)
 
@@ -389,6 +412,7 @@ colnames(physeq.taxa.max)[1] <- ml
 physeq_meta <- merge(taxa.summary, physeq.taxa.max)
 
 physeq_meta_filtered <- filter(physeq_meta, overall.max>abund_filter)
+
 
 physeq_meta_filtered$Disease_Severity_ord = 
   factor(physeq_meta_filtered$Disease_Severity, 
@@ -412,7 +436,7 @@ ggplot(physeq_meta_filtered, aes(x = get(my_column), y = Abundance.average, fill
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
   theme(legend.title = element_blank()) +
   ylab("Relative Abundance") +
-  xlab(my_column) +
+  xlab(my_column_Sex) +
   ggtitle(paste0(ml, " (>", abund_filter * 100,"%) in at least 1 sample")) 
 
 #First get the OTU table from physeq
@@ -470,6 +494,8 @@ alpha = 0.05
 my_contrast = 
   c("COVID_Result","Positive","Negative" ) 
 
+
+
 res = results(diagdds, contrast = my_contrast, cooksCutoff = FALSE)
 
 sigtab = res[which(res$padj < alpha), ]
@@ -518,3 +544,60 @@ DESeq_fig = ggplot(sigtab, aes(x=Genus, y = log2FoldChange, color=Phylum)) +
   theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
 
 DESeq_fig
+
+########PICRUSt ==============================================================================
+physeq_Picrust <- qza_to_phyloseq(
+  features="pathway_abundance.qza",
+  metadata = "Meta_clean.txt"
+)
+
+physeq_otu_table_picrust <- data.frame(otu_table(physeq_Picrust), check.names = F)
+
+OTU.clean2_picrust <-physeq_otu_table_picrust +1
+
+
+OTU.physeq_Picrust = otu_table(as.matrix(physeq_otu_table_picrust), taxa_are_rows=TRUE)
+
+
+meta.physeq_Picrust = sample_data(metadata.filtered)
+meta.physeq_Picrust$COVID_Result <- as.factor(meta.physeq_Picrust$COVID_Result)
+
+physeq_Picrust = phyloseq(OTU.physeq_Picrust, meta.physeq_Picrust)
+
+
+
+diagdds_Picrust = phyloseq_to_deseq2(physeq_Picrust, ~ COVID_Result)
+
+diagdds_Picrust = DESeq(diagdds_Picrust, test="Wald", fitType="parametric")
+
+my_contrast_Picrust <- c("COVID_Result", "Positive", "Negative")
+
+res_Picrust <- results(diagdds_Picrust,
+                       contrast = my_contrast_Picrust,
+                       cooksCutoff = FALSE)
+
+sigtab_Picrust <- res_Picrust[which(res_Picrust$padj< 0.1),]
+
+sigtab_Picrust <- as(sigtab_Picrust,"data.frame")
+
+
+x = sigtab_Picrust$log2FoldChange
+names(x) <- row.names(sigtab_Picrust)
+
+x = sort(x, TRUE)
+
+sigtab_Picrust$pathway <- row.names(sigtab_Picrust)
+sigtab_Picrust$pathway = factor(as.character(sigtab_Picrust$pathway, levels = FALSE))
+str(sigtab_Picrust$pathway)
+
+sigtab_Picrust$Genus = factor(as.character(sigtab_Picrust$Genus), levels=names(x))
+
+DESeq_fig_Picrust = ggplot(sigtab_Picrust, 
+                           aes(x= pathway, y = log2FoldChange)) + 
+  geom_point(size=3) + 
+  ylab(paste0("(", my_contrast_Picrust[2], "/", my_contrast_Picrust[3], ")\n", "log2FoldChange")) +
+  scale_color_manual(values = my_colors[c(4,6,8,10,12,14,16,18,20)]) +
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+DESeq_fig_Picrust
+
