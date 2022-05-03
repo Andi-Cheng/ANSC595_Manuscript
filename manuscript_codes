@@ -187,3 +187,93 @@ qiime composition ancom \
   --m-metadata-file metadata_v3.txt \
   --m-metadata-column Disease_Severity \
   --o-visualization l6-ancom-DiseaseSeverity.qzv
+
+##PICRUSt
+
+qiime picrust2 full-pipeline \
+   --i-table table.qza \
+   --i-seq rep-seqs.qza \
+   --output-dir q2-picrust2_output \
+   --p-placement-tool sepp \
+   --p-threads 1 \
+   --p-hsp-method pic \
+   --p-max-nsti 2 \
+   --verbose
+   
+qiime feature-table summarize \
+   --i-table q2-picrust2_output/pathway_abundance.qza \
+   --o-visualization q2-picrust2_output/pathway_abundance.qzv
+   
+qiime diversity core-metrics \
+   --i-table q2-picrust2_output/pathway_abundance.qza \
+   --p-sampling-depth 483239 \ ## I chosed 483239 becuase that's my lowest one and I want to include all my samples 
+   --m-metadata-file mammal_metadata.tsv \
+   --output-dir pathabun_core_metrics_out \
+   --p-n-jobs 1
+
+qiime tools export \
+   --input-path q2-picrust2_output/pathway_abundance.qza \
+   --output-path pathabun_exported
+   
+biom convert \
+   -i pathabun_exported/feature-table.biom \
+   -o pathabun_exported/feature-table.biom.tsv \
+   --to-tsv
+   
+qiime sample-classifier classify-samples \
+  --i-table table.qza \
+  --m-metadata-file metadata_v3.txt \
+  --m-metadata-column COVID_Result \
+  --p-optimize-feature-selection \
+  --p-parameter-tuning \
+  --p-estimator RandomForestClassifier \
+  --p-n-estimators 20 \
+  --p-random-state 123 \
+  --output-dir covid-classifier
+
+qiime metadata tabulate \
+  --m-input-file covid-classifier/predictions.qza \
+  --o-visualization covid-classifier/predictions.qzv
+
+qiime metadata tabulate \
+  --m-input-file covid-classifier/probabilities.qza \
+  --o-visualization covid-classifier/probabilities.qzv
+
+qiime metadata tabulate \
+  --m-input-file covid-classifier/feature_importance.qza \
+  --o-visualization covid-classifier/feature_importance.qzv
+
+qiime feature-table filter-features \
+  --i-table table.qza \
+  --m-metadata-file covid-classifier/feature_importance.qza \
+  --o-filtered-table covid-classifier/important-feature-table.qza
+
+qiime sample-classifier heatmap \
+  --i-table table.qza \
+  --i-importance covid-classifier/feature_importance.qza \
+  --m-sample-metadata-file metadata_v3.txt \
+  --m-sample-metadata-column COVID_Result \
+  --p-group-samples \
+  --p-feature-count 30 \
+  --o-filtered-table covid-classifier/important-feature-table-top-30.qza \
+  --o-heatmap covid-classifier/important-feature-heatmap.qzv
+
+qiime sample-classifier heatmap \
+--i-table table.qza \
+--i-importance covid-classifier/feature_importance.qza  \
+--m-sample-metadata-file metadata_v3.txt  \
+--m-sample-metadata-column COVID_Result \
+--m-feature-metadata-file taxonomy.qza \
+--m-feature-metadata-column Taxon \
+--p-group-samples  \
+--p-feature-count 30  \
+--o-filtered-table covid-classifier/important-feature-table-taxonomy-top-30.qza \
+--o-heatmap covid-classifier/important-feature-heatmap-taxonomy.qzv\
+
+qiime gneiss dendrogram-heatmap \
+  --i-table table.qza \
+  --i-tree hierarchy.qza \
+  --m-metadata-file metadata_v2.tsv \
+  --m-metadata-column Disease_Severity \
+  --p-color-map seismic \
+  --o-visualization heatmap_severity.qzv
